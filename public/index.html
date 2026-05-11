@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>할일 앱</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 40px 16px; }
+    .container { background: #fff; border-radius: 12px; padding: 32px; width: 100%; max-width: 480px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    h1 { font-size: 24px; margin-bottom: 24px; color: #1a1a1a; }
+    .input-row { display: flex; gap: 8px; margin-bottom: 24px; }
+    .input-row input { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+    .input-row input:focus { border-color: #4f8ef7; }
+    .btn { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+    .btn-primary { background: #4f8ef7; color: #fff; }
+    .btn-primary:hover { background: #3a7de0; }
+    .todo-list { display: flex; flex-direction: column; gap: 10px; }
+    .todo-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #eee; border-radius: 8px; background: #fafafa; }
+    .todo-item.editing { background: #fffbe6; border-color: #ffd666; }
+    .todo-title { flex: 1; font-size: 14px; color: #333; }
+    .edit-input { flex: 1; padding: 6px 10px; border: 1px solid #ffd666; border-radius: 6px; font-size: 14px; outline: none; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
+    .btn-edit { background: #f0f0f0; color: #555; }
+    .btn-edit:hover { background: #e0e0e0; }
+    .btn-save { background: #52c41a; color: #fff; }
+    .btn-save:hover { background: #389e0d; }
+    .btn-cancel { background: #f0f0f0; color: #555; }
+    .btn-delete { background: #ff4d4f; color: #fff; }
+    .btn-delete:hover { background: #cf1322; }
+    .empty { text-align: center; color: #aaa; font-size: 14px; padding: 32px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>할일 앱</h1>
+    <div class="input-row">
+      <input id="newTodo" type="text" placeholder="할일을 입력하세요" />
+      <button class="btn btn-primary" onclick="addTodo()">추가</button>
+    </div>
+    <div class="todo-list" id="todoList"></div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:5000/todos';
+
+    async function fetchTodos() {
+      const res = await fetch(API);
+      const todos = await res.json();
+      render(todos);
+    }
+
+    async function addTodo() {
+      const input = document.getElementById('newTodo');
+      const title = input.value.trim();
+      if (!title) return;
+      await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title })
+      });
+      input.value = '';
+      fetchTodos();
+    }
+
+    async function deleteTodo(id) {
+      await fetch(`${API}/${id}`, { method: 'DELETE' });
+      fetchTodos();
+    }
+
+    async function saveTodo(id) {
+      const input = document.getElementById(`edit-${id}`);
+      const title = input.value.trim();
+      if (!title) return;
+      await fetch(`${API}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title })
+      });
+      fetchTodos();
+    }
+
+    function render(todos) {
+      const list = document.getElementById('todoList');
+      if (todos.length === 0) {
+        list.innerHTML = '<div class="empty">할일이 없습니다</div>';
+        return;
+      }
+      list.innerHTML = todos.map(todo => `
+        <div class="todo-item" id="item-${todo._id}">
+          <span class="todo-title" id="title-${todo._id}">${todo.title}</span>
+          <input class="edit-input" id="edit-${todo._id}" value="${todo.title}" style="display:none" />
+          <button class="btn btn-sm btn-edit" id="editBtn-${todo._id}" onclick="startEdit('${todo._id}')">수정</button>
+          <button class="btn btn-sm btn-save" id="saveBtn-${todo._id}" onclick="saveTodo('${todo._id}')" style="display:none">저장</button>
+          <button class="btn btn-sm btn-cancel" id="cancelBtn-${todo._id}" onclick="cancelEdit('${todo._id}', \`${todo.title}\`)" style="display:none">취소</button>
+          <button class="btn btn-sm btn-delete" onclick="deleteTodo('${todo._id}')">삭제</button>
+        </div>
+      `).join('');
+    }
+
+    function startEdit(id) {
+      document.getElementById(`title-${id}`).style.display = 'none';
+      document.getElementById(`edit-${id}`).style.display = '';
+      document.getElementById(`editBtn-${id}`).style.display = 'none';
+      document.getElementById(`saveBtn-${id}`).style.display = '';
+      document.getElementById(`cancelBtn-${id}`).style.display = '';
+      document.getElementById(`item-${id}`).classList.add('editing');
+    }
+
+    function cancelEdit(id, originalTitle) {
+      document.getElementById(`title-${id}`).style.display = '';
+      document.getElementById(`edit-${id}`).style.display = 'none';
+      document.getElementById(`editBtn-${id}`).style.display = '';
+      document.getElementById(`saveBtn-${id}`).style.display = 'none';
+      document.getElementById(`cancelBtn-${id}`).style.display = 'none';
+      document.getElementById(`item-${id}`).classList.remove('editing');
+      document.getElementById(`edit-${id}`).value = originalTitle;
+    }
+
+    document.getElementById('newTodo').addEventListener('keydown', e => {
+      if (e.key === 'Enter') addTodo();
+    });
+
+    fetchTodos();
+  </script>
+</body>
+</html>
